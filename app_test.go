@@ -3,11 +3,13 @@ package exporter_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/rafalmnich/exporter"
 	"github.com/rafalmnich/exporter/mocks"
+	"github.com/rafalmnich/exporter/sink"
 )
 
 func TestNewApplication(t *testing.T) {
@@ -20,20 +22,17 @@ func TestNewApplication(t *testing.T) {
 func TestApplication_Import(t *testing.T) {
 	imp := new(mocks.Importer)
 	exp := new(mocks.Exporter)
-	expected := []exporter.ImportData{
+	expected := []*sink.Reading{
 		{
-			Type: "input",
-			Data: map[string]interface{}{
-				"foo":   "bar",
-				"one":   1.0,
-				"two":   2,
-				"three": false,
-			},
+			Name:     "name",
+			Type:     sink.Input,
+			Value:    20,
+			Occurred: time.Now(),
 		},
 	}
 	ctx := context.Background()
 
-	imp.On("Import", ctx).Return(expected)
+	imp.On("Import", ctx).Return(expected, nil)
 	app := exporter.NewApplication(imp, exp)
 
 	data, err := app.Import(context.Background())
@@ -44,20 +43,17 @@ func TestApplication_Import(t *testing.T) {
 func TestApplication_Export(t *testing.T) {
 	imp := new(mocks.Importer)
 	exp := new(mocks.Exporter)
-	importData := []exporter.ImportData{
+	importData := []*sink.Reading{
 		{
-			Type: "input",
-			Data: map[string]interface{}{
-				"foo":   "bar",
-				"one":   1.0,
-				"two":   2,
-				"three": false,
-			},
+			Name:     "name",
+			Type:     sink.Input,
+			Value:    10,
+			Occurred: time.Now(),
 		},
 	}
 	ctx := context.Background()
 
-	exp.On("Export", ctx, importData).Return(importData)
+	exp.On("Export", ctx, importData).Return(nil)
 	app := exporter.NewApplication(imp, exp)
 	err := app.Export(context.Background(), importData)
 	assert.NoError(t, err)

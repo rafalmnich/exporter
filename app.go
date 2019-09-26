@@ -6,11 +6,6 @@ import (
 	"github.com/rafalmnich/exporter/sink"
 )
 
-type ImportData struct {
-	Type string
-	Data map[string]interface{}
-}
-
 type Application interface {
 	Import(ctx context.Context) ([]*sink.Reading, error)
 	Export(ctx context.Context, imp []*sink.Reading) error
