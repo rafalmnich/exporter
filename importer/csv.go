@@ -35,7 +35,22 @@ func NewCsvImporter(db *gorm.DB, doer sling.Doer, startOffset time.Duration, bas
 
 // Import imports data (inputs and outputs) from given mass
 func (c *CsvImporter) Import(ctx context.Context) ([]*sink.Reading, error) {
-	return c.getNewReadings(ctx, c.getLastSync(), sink.Input)
+	inputs, err := c.getNewReadings(ctx, c.getLastSync(), sink.Input)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot get new input readings: %w", err)
+	}
+
+	outputs, err := c.getNewReadings(ctx, c.getLastSync(), sink.Output)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot get new output readings: %w", err)
+	}
+
+	totalLen := len(inputs) + len(outputs)
+	data := make([]*sink.Reading, 0, totalLen)
+	data = append(data, inputs...)
+	data = append(data, outputs...)
+
+	return data, nil
 }
 
 func (c *CsvImporter) getLastSync() *sink.Import {
@@ -50,7 +65,7 @@ func (c *CsvImporter) getLastSync() *sink.Import {
 }
 
 func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Import, tp sink.Type) ([]*sink.Reading, error) {
-	uri := c.baseUri + c.fileName(reading)
+	uri := c.baseUri + c.fileName(reading, tp)
 
 	var response *http.Response
 	request, err := sling.
@@ -59,12 +74,12 @@ func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Import, 
 		Request()
 
 	if err != nil {
-		return nil, xerrors.Errorf(": %w", err)
+		return nil, xerrors.Errorf("error creating request: %w", err)
 	}
 
 	response, err = c.doer.Do(request)
 	if err != nil {
-		return nil, xerrors.Errorf(": %w", err)
+		return nil, xerrors.Errorf("error requesting uri: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
 		return nil, xerrors.New("Couldn't read from source: " + uri)
@@ -73,19 +88,23 @@ func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Import, 
 	return c.prepareReading(ctx, response, tp)
 }
 
-func (c *CsvImporter) fileName(lastImport *sink.Import) string {
+func (c *CsvImporter) fileName(lastImport *sink.Import, tp sink.Type) string {
 	nextImportDate := c.nextImportDate(lastImport)
 
 	dir := nextImportDate.Format("200601")
 	date := nextImportDate.Format("20060102")
 
-	return fmt.Sprintf("/logs/%s/i_%s.csv", dir, date)
+	if tp == sink.Input {
+		return fmt.Sprintf("/logs/%s/i_%s.csv", dir, date)
+	}
+
+	return fmt.Sprintf("/logs/%s/o_%s.csv", dir, date)
 }
 
 func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Response, tp sink.Type) ([]*sink.Reading, error) {
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return nil, xerrors.Errorf(": %w", err)
+		return nil, xerrors.Errorf("cannot read response body: %w", err)
 	}
 
 	reader := csv.NewReader(strings.NewReader(string(body)))
@@ -93,7 +112,7 @@ func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Respons
 
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, xerrors.Errorf(": %w", err)
+		return nil, xerrors.Errorf("cannot read csv file: %w", err)
 	}
 
 	if len(records) == 0 {
@@ -112,7 +131,6 @@ func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Respons
 		if err == nil {
 			readings = append(readings, rs...)
 		}
-
 	}
 
 	return readings, nil
@@ -123,7 +141,7 @@ func (c *CsvImporter) extract(row []string, ctx context.Context, names []string,
 	occurred, err := time.Parse("2006-01-02 15:04:05", dateTime)
 	if err != nil {
 		log.Error(ctx, "Cannot parse time: "+dateTime)
-		return nil, xerrors.Errorf(": %w", err)
+		return nil, xerrors.Errorf("cannot parse time: %w", err)
 	}
 
 	readings := make([]*sink.Reading, 0, len(row))
