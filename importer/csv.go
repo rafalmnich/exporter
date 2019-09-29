@@ -18,19 +18,18 @@ import (
 	"github.com/rafalmnich/exporter/sink"
 )
 
-const (
-	host = "192.168.8.134"
-)
-
+// CsvImporter is a service for importing data from csv file that is online
 type CsvImporter struct {
 	db    *gorm.DB
 	sling *sling.Sling
 }
 
+// NewCsvImporter is CsvImporter constructor
 func NewCsvImporter(db *gorm.DB, sling *sling.Sling) *CsvImporter {
 	return &CsvImporter{db: db, sling: sling}
 }
 
+// Import imports data (inputs and outputs) from given mass
 func (c *CsvImporter) Import(ctx context.Context) ([]*sink.Reading, error) {
 	lastSync, err := c.getLastSync(ctx)
 	if err != nil {
@@ -54,9 +53,9 @@ func (c *CsvImporter) getLastSync(ctx context.Context) (*sink.Reading, error) {
 func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Reading, tp sink.Type) ([]*sink.Reading, error) {
 	dir := reading.Occurred.Format("200601")
 	date := reading.Occurred.Format("20060102")
-	filename := fmt.Sprintf("http://%s/logs/%s/i_%s.csv", host, dir, date)
+	filename := fmt.Sprintf("/logs/%s/i_%s.csv", dir, date)
 
-	contents, err := c.sling.
+	response, err := c.sling.
 		New().
 		Get(filename).
 		ReceiveSuccess(nil)
@@ -64,7 +63,7 @@ func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Reading,
 		return nil, xerrors.Errorf(": %w", err)
 	}
 
-	return c.prepareReading(ctx, contents, tp)
+	return c.prepareReading(ctx, response, tp)
 }
 
 func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Response, tp sink.Type) ([]*sink.Reading, error) {

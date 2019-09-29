@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	flagSourceUri = "input-source"
+	flagSourceURI = "input-source"
 	flagDBUri     = "db-uri"
 )
 
 var flags = clix.Flags{
 	cli.StringFlag{
-		Name:   flagSourceUri,
+		Name:   flagSourceURI,
 		Usage:  "Source uri for exporting data",
 		EnvVar: "SOURCE_URI",
 	},

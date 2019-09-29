@@ -6,32 +6,42 @@ import (
 	"github.com/rafalmnich/exporter/sink"
 )
 
+// Application is the App
 type Application interface {
 	Import(ctx context.Context) ([]*sink.Reading, error)
 	Export(ctx context.Context, imp []*sink.Reading) error
 }
 
+// Importer is a data importer
 type Importer interface {
 	Import(ctx context.Context) ([]*sink.Reading, error)
 }
 
+// Exporter is a data exporter
 type Exporter interface {
 	Export(ctx context.Context, imp []*sink.Reading) error
 }
 
-type application struct {
+type App struct {
 	importer Importer
 	exporter Exporter
 }
 
-func NewApplication(importer Importer, exporter Exporter) *application {
-	return &application{importer: importer, exporter: exporter}
+func (a App) IsHealthy() error {
+	return nil
 }
 
-func (a application) Import(ctx context.Context) ([]*sink.Reading, error) {
+// NewApplication creates App
+func NewApplication(importer Importer, exporter Exporter) *App {
+	return &App{importer: importer, exporter: exporter}
+}
+
+// Import imports data
+func (a App) Import(ctx context.Context) ([]*sink.Reading, error) {
 	return a.importer.Import(ctx)
 }
 
-func (a application) Export(ctx context.Context, imp []*sink.Reading) error {
+// Export exports data
+func (a App) Export(ctx context.Context, imp []*sink.Reading) error {
 	return a.exporter.Export(ctx, imp)
 }

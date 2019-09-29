@@ -1,24 +1,34 @@
 package sink
 
 import (
-	"time"
+	"context"
 
 	"github.com/jinzhu/gorm"
+	"golang.org/x/xerrors"
 )
 
-type Type int
+// Exporter is exporting data fromm readings to database
+type Exporter struct {
+	db *gorm.DB
+}
 
-const (
-	Input Type = iota
-	Output
-)
+// NewExporter is Exporter constructor
+func NewExporter(db *gorm.DB) *Exporter {
+	return &Exporter{db: db}
+}
 
-type Reading struct {
-	gorm.Model
+// Export exports given readings as database records
+func (e *Exporter) Export(ctx context.Context, readings []*Reading) error {
+	t := e.db.Begin()
 
-	ID       int64
-	Name     string
-	Type     Type
-	Value    int
-	Occurred time.Time
+	for _, reading := range readings {
+		if err := t.Save(reading).Error; err != nil {
+			return xerrors.Errorf(": %w", err)
+		}
+	}
+	if err := t.Commit().Error; err != nil {
+		return xerrors.Errorf(": %w", err)
+	}
+
+	return nil
 }

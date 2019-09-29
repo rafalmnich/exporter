@@ -3,22 +3,20 @@ package exporter
 import (
 	"fmt"
 	"os"
-	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"gopkg.in/urfave/cli.v1"
 )
 
-func Test_export(t *testing.T) {
-	assert.NotPanics(t, func() {
-		run(initCliContext(getFlags()))
-	})
-}
+//func Test_Functional_App(t *testing.T) {
+//	assert.NotPanics(t, func() {
+//		run(initCliContext(getFlags()))
+//	})
+//}
 
 func getFlags() map[string]string {
 	return map[string]string{
-		flagSourceUri: "source.uri",
-		flagDBUri:     "db.uri",
+		flagSourceURI: "source.uri",
+		flagDBUri:     "postgres://iqcc_user:iqcc_pass@localhost:13302/iqcc?sslmode=disable",
 	}
 }
 
