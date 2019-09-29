@@ -7,6 +7,11 @@ go:
 env:
 - GO111MODULE=on
 
+services:
+  - postgresql
+
+before_script:
+  - psql -c 'create database iqcc;' -U postgres
 
 before_install:
   - go mod download

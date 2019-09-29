@@ -16,7 +16,7 @@ import (
 func getFlags() map[string]string {
 	return map[string]string{
 		flagSourceURI: "source.uri",
-		flagDBUri:     "postgres://iqcc_user:iqcc_pass@localhost:13302/iqcc?sslmode=disable",
+		flagDBUri:     "postgres://postgres://postgres@localhost/iqcc?sslmode=disable",
 	}
 }
 
