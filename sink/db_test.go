@@ -28,6 +28,12 @@ var reading2 = &sink.Reading{
 	Value:    150,
 	Occurred: occuredTime,
 }
+var reading3 = &sink.Reading{
+	Name:     "name3",
+	Type:     sink.Output,
+	Value:    150,
+	Occurred: occuredTime,
+}
 
 func TestExporter_Export(t *testing.T) {
 	input := []*sink.Reading{
@@ -59,7 +65,7 @@ func TestExporter_Export(t *testing.T) {
 
 func TestExporter_Export_WithErrorOnCommit(t *testing.T) {
 	input := []*sink.Reading{
-		reading1,
+		reading3,
 	}
 	mock, db := tests.MockGormDB()
 
@@ -69,11 +75,35 @@ func TestExporter_Export_WithErrorOnCommit(t *testing.T) {
 
 	mock.
 		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1,$2,$3,$4) RETURNING "iqc"."reading"."id"`)).
-		WithArgs("name1", 0, 20, occuredTime).
+		WithArgs("name3", 1, 150, occuredTime).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).
 			AddRow(3))
 
 	mock.ExpectCommit().WillReturnError(errors.New("test error"))
+
+	err := e.Export(context.TODO(), input)
+	assert.Error(t, err)
+}
+
+func TestExporter_Export_WithErrorOnSave(t *testing.T) {
+	input := []*sink.Reading{
+		{
+			Name:     "test5",
+			Type:     sink.Output,
+			Value:    120,
+			Occurred: occuredTime,
+		},
+	}
+	mock, db := tests.MockGormDB()
+
+	e := sink.NewExporter(db)
+
+	mock.ExpectBegin()
+
+	mock.
+		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1,$2,$3,$4) RETURNING "iqc"."reading"."id"`)).
+		WithArgs("name5", 1, 120, occuredTime).
+		WillReturnError(errors.New("test error"))
 
 	err := e.Export(context.TODO(), input)
 	assert.Error(t, err)

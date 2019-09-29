@@ -19,7 +19,7 @@ func TestNewApplication(t *testing.T) {
 	assert.Implements(t, (*exporter.Application)(nil), app)
 }
 
-func TestApplication_Import(t *testing.T) {
+func TestApp_Import(t *testing.T) {
 	imp := new(mocks.Importer)
 	exp := new(mocks.Exporter)
 	expected := []*sink.Reading{
@@ -40,7 +40,7 @@ func TestApplication_Import(t *testing.T) {
 	assert.Equal(t, expected, data)
 }
 
-func TestApplication_Export(t *testing.T) {
+func TestApp_Export(t *testing.T) {
 	imp := new(mocks.Importer)
 	exp := new(mocks.Exporter)
 	importData := []*sink.Reading{
@@ -57,4 +57,12 @@ func TestApplication_Export(t *testing.T) {
 	app := exporter.NewApplication(imp, exp)
 	err := app.Export(context.Background(), importData)
 	assert.NoError(t, err)
+}
+
+func TestApp_IsHealthy(t *testing.T) {
+	imp := new(mocks.Importer)
+	exp := new(mocks.Exporter)
+	app := exporter.NewApplication(imp, exp)
+
+	assert.NoError(t, app.IsHealthy())
 }
