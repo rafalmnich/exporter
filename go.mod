@@ -3,7 +3,6 @@ module github.com/rafalmnich/exporter
 go 1.12
 
 require (
-	cloud.google.com/go v0.37.4 // indirect
 	github.com/DATA-DOG/go-sqlmock v1.3.0
 	github.com/denisenkom/go-mssqldb v0.0.0-20190924004331-208c0a498538 // indirect
 	github.com/dghubble/sling v1.3.0
@@ -18,5 +17,6 @@ require (
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392 // indirect
 	golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7
+	google.golang.org/appengine v1.4.0 // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
