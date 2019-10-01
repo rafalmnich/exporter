@@ -13,7 +13,7 @@ func TestGetSling(t *testing.T) {
 	assert.Equal(t, s, getSling())
 }
 
-var pgurl = "postgres://postgres@localhost/iqcc"
+var pgurl = "postgres://iqcc_user:iqcc_pass@localhost/iqcc?sslmode=disable"
 
 func TestGetDb(t *testing.T) {
 	db = nil

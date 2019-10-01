@@ -12,6 +12,7 @@ services:
 
 before_script:
   - psql -c 'create database iqcc;' -U postgres
+  - psql -c "CREATE USER iqcc_user WITH PASSWORD 'iqcc_pass';" -U postgres
 
 before_install:
   - go mod download
