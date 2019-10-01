@@ -24,7 +24,7 @@ var flags = clix.Flags{
 		Usage:  "Postgres url",
 		EnvVar: "DB_URI",
 	},
-}
+}.Merge(clix.CommonFlags)
 
 // Version is the compiled application version.
 var Version = "¯\\_(ツ)_/¯"

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/msales/pkg/v3/clix"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -20,10 +21,22 @@ func Test_Functional_App(t *testing.T) {
 	})
 }
 
+func Test_Functional_App_Panics_Context(t *testing.T) {
+	assert.Panics(t, func() {
+		flags := getFlags()
+		flags[clix.FlagLogLevel] = "not existing"
+
+		ctx := initCliContext(flags)
+
+		run(ctx)
+	})
+}
+
 func getFlags() map[string]string {
 	return map[string]string{
-		flagSourceURI: "source.uri",
-		flagDBUri:     "postgres://iqcc_user:iqcc_pass@localhost/iqcc?sslmode=disable",
+		flagSourceURI:     "source.uri",
+		flagDBUri:         "postgres://iqcc_user:iqcc_pass@localhost/iqcc?sslmode=disable",
+		clix.FlagLogLevel: "info",
 	}
 }
 
