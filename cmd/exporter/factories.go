@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"github.com/benbjohnson/clock"
 	"github.com/dghubble/sling"
 	"github.com/jinzhu/gorm"
 	"golang.org/x/xerrors"
@@ -10,6 +11,7 @@ import (
 
 var sl *sling.Sling
 var db *gorm.DB
+var cl clock.Clock
 
 func getSling() *sling.Sling {
 	if sl == nil {
@@ -39,4 +41,12 @@ func newGorm(dbURI string) (*gorm.DB, error) {
 	}
 
 	return gormDB, nil
+}
+
+func getClock() clock.Clock {
+	if cl == nil {
+		cl = clock.New()
+	}
+
+	return cl
 }

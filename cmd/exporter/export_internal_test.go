@@ -3,15 +3,22 @@ package exporter
 import (
 	"fmt"
 	"os"
+	"syscall"
+	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/urfave/cli.v1"
 )
 
-//func Test_Functional_App(t *testing.T) {
-//	assert.NotPanics(t, func() {
-//		run(initCliContext(getFlags()))
-//	})
-//}
+func Test_Functional_App(t *testing.T) {
+	assert.NotPanics(t, func() {
+		go run(initCliContext(getFlags()))
+		time.Sleep(300 * time.Millisecond)
+		err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+		assert.NoError(t, err)
+	})
+}
 
 func getFlags() map[string]string {
 	return map[string]string{

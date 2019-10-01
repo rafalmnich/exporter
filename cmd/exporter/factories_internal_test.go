@@ -40,3 +40,9 @@ func TestNewGorm(t *testing.T) {
 
 	assert.IsType(t, &gorm.DB{}, g)
 }
+
+func TestGetClock(t *testing.T) {
+	c := getClock()
+
+	assert.Equal(t, c, getClock())
+}

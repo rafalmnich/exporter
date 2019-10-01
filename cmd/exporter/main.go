@@ -33,7 +33,7 @@ var commands = []cli.Command{
 	{
 		Name:   "server",
 		Usage:  "Run the server",
-		Flags:  flags.Merge(clix.CommonFlags, clix.ServerFlags, clix.KafkaProducerFlags),
+		Flags:  flags.Merge(clix.CommonFlags, clix.ServerFlags),
 		Action: run,
 	},
 }
