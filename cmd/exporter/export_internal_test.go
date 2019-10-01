@@ -23,7 +23,7 @@ func Test_Functional_App(t *testing.T) {
 func getFlags() map[string]string {
 	return map[string]string{
 		flagSourceURI: "source.uri",
-		flagDBUri:     "postgres://postgres://postgres@localhost/iqcc?sslmode=disable",
+		flagDBUri:     "postgres://postgres@localhost/iqcc?sslmode=disable",
 	}
 }
 
