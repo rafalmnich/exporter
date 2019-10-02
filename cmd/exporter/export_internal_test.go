@@ -32,7 +32,7 @@ func Test_Functional_App(t *testing.T) {
 
 	assert.NotPanics(t, func() {
 		go run(initCliContext(getFlags()))
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
 		assert.NoError(t, err)
 	})
@@ -42,7 +42,7 @@ func Test_Functional_App_Errored_Export(t *testing.T) {
 	db = nil
 	assert.NotPanics(t, func() {
 		go run(initCliContext(getFlags()))
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
 		assert.NoError(t, err)
 	})
@@ -120,7 +120,7 @@ func TestGetData(t *testing.T) {
 
 	go getData(ctx, app, time.Millisecond, errs)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	errs <- errors.New("test error")
 }
 
@@ -170,7 +170,7 @@ func getFlags() map[string]string {
 	return map[string]string{
 		flagSourceURI:     "http://example.com",
 		flagDBUri:         dbURI,
-		flagImportPeriod:  "50ms",
+		flagImportPeriod:  "5ms",
 		clix.FlagLogLevel: "info",
 	}
 }
