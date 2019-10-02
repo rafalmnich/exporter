@@ -30,29 +30,29 @@ func run(c *cli.Context) {
 
 	db, err := getDb(c.String(flagDBUri))
 	if err != nil {
-		log.Fatal(ctx, err.Error())
+		panic(err)
 	}
 
 	i := importer.NewCsvImporter(db, s)
 	e := sink.NewExporter(db)
-	app := exporter.NewApplication(i, e)
+	app := exporter.NewApplication(i, e, db)
 
 	if err := app.IsHealthy(); err != nil {
-		log.Fatal(ctx, err.Error())
+		panic(err)
 	}
 
 	go health.StartServer(":"+ctx.String(clix.FlagPort), app)
 
 	errs := make(chan error, 1)
-	go getData(ctx, app, errs)
+	go getData(ctx, app, c.Duration(flagImportPeriod), errs)
 
 	<-clix.WaitForSignals()
 
 	log.Info(ctx, "Task finished!")
 }
 
-func getData(ctx context.Context, app *exporter.App, errs chan error) {
-	ticker := getClock().Ticker(time.Minute)
+func getData(ctx context.Context, app exporter.Application, tickTime time.Duration, errs chan error) {
+	ticker := getClock().Ticker(tickTime)
 
 	for {
 		select {
@@ -60,11 +60,13 @@ func getData(ctx context.Context, app *exporter.App, errs chan error) {
 			i, err := app.Import(ctx)
 			if err != nil {
 				errs <- err
+				break
 			}
 
 			err = app.Export(ctx, i)
 			if err != nil {
 				errs <- err
+				break
 			}
 
 			break

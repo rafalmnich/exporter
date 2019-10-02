@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	flagSourceURI = "input-source"
-	flagDBUri     = "db-uri"
+	flagSourceURI    = "input-source"
+	flagDBUri        = "db-uri"
+	flagImportPeriod = "import-period"
 )
 
 var flags = clix.Flags{
@@ -23,6 +24,11 @@ var flags = clix.Flags{
 		Name:   flagDBUri,
 		Usage:  "Postgres url",
 		EnvVar: "DB_URI",
+	},
+	cli.DurationFlag{
+		Name:   flagImportPeriod,
+		Usage:  "The import period - shouldn't be less than 1 min",
+		EnvVar: "IMPORT_PERIOD",
 	},
 }.Merge(clix.CommonFlags)
 

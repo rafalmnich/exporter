@@ -36,7 +36,7 @@ func (c *CsvImporter) Import(ctx context.Context) ([]*sink.Reading, error) {
 		return nil, xerrors.Errorf(": %w", err)
 	}
 
-	return c.getNewReadings(ctx, lastSync, 0)
+	return c.getNewReadings(ctx, lastSync, sink.Input)
 }
 
 func (c *CsvImporter) getLastSync(ctx context.Context) (*sink.Reading, error) {

@@ -3,6 +3,8 @@ package exporter
 import (
 	"context"
 
+	"github.com/jinzhu/gorm"
+
 	"github.com/rafalmnich/exporter/sink"
 )
 
@@ -25,15 +27,16 @@ type Exporter interface {
 type App struct {
 	importer Importer
 	exporter Exporter
+	db       *gorm.DB
 }
 
 func (a App) IsHealthy() error {
-	return nil
+	return a.db.DB().Ping()
 }
 
 // NewApplication creates App
-func NewApplication(importer Importer, exporter Exporter) *App {
-	return &App{importer: importer, exporter: exporter}
+func NewApplication(importer Importer, exporter Exporter, db *gorm.DB) *App {
+	return &App{importer: importer, exporter: exporter, db: db}
 }
 
 // Import imports data
