@@ -33,7 +33,7 @@ func run(c *cli.Context) {
 		panic(err)
 	}
 
-	i := importer.NewCsvImporter(db, s)
+	i := importer.NewCsvImporter(db, s, c.Duration(flagStartOffset))
 	e := sink.NewExporter(db)
 	app := exporter.NewApplication(i, e, db)
 

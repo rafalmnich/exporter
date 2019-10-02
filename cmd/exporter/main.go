@@ -12,6 +12,7 @@ const (
 	flagSourceURI    = "input-source"
 	flagDBUri        = "db-uri"
 	flagImportPeriod = "import-period"
+	flagStartOffset  = "start-offset"
 )
 
 var flags = clix.Flags{
@@ -30,7 +31,12 @@ var flags = clix.Flags{
 		Usage:  "The import period - shouldn't be less than 1 min",
 		EnvVar: "IMPORT_PERIOD",
 	},
-}.Merge(clix.CommonFlags)
+	cli.DurationFlag{
+		Name:   flagStartOffset,
+		Usage:  "How far from now to start getting readings, if no readings in database",
+		EnvVar: "START_OFFSET",
+	},
+}.Merge(clix.CommonFlags, clix.ServerFlags)
 
 // Version is the compiled application version.
 var Version = "¯\\_(ツ)_/¯"
@@ -39,7 +45,7 @@ var commands = []cli.Command{
 	{
 		Name:   "server",
 		Usage:  "Run the server",
-		Flags:  flags.Merge(clix.CommonFlags, clix.ServerFlags),
+		Flags:  flags,
 		Action: run,
 	},
 }

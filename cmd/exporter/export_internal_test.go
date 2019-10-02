@@ -171,6 +171,7 @@ func getFlags() map[string]string {
 		flagSourceURI:     "http://example.com",
 		flagDBUri:         dbURI,
 		flagImportPeriod:  "5ms",
+		flagStartOffset:   "336h",
 		clix.FlagLogLevel: "info",
 	}
 }
