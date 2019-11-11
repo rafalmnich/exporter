@@ -1,0 +1,29 @@
+sudo: false
+
+language: go
+go:
+  - "1.12.x"
+  - "1.x"
+env:
+- GO111MODULE=on
+
+services:
+  - postgresql
+
+before_script:
+  - psql -c 'create database iqcc;' -U postgres
+  - psql -c "CREATE USER iqcc_user WITH PASSWORD 'iqcc_pass';" -U postgres
+
+before_install:
+  - go mod download
+  - go get -u golang.org/x/lint/golint
+  - go get github.com/mattn/goveralls
+
+script:
+  - golint ./...
+  - go vet ./...
+  - go test -covermode=count -coverprofile=profile.cov ./...
+  - goveralls -coverprofile=profile.cov -service=travis-ci
+
+notifications:
+  email: false
