@@ -1,4 +1,4 @@
-package exporter
+package main
 
 import (
 	"log"
@@ -6,20 +6,24 @@ import (
 
 	"github.com/msales/pkg/v3/clix"
 	"gopkg.in/urfave/cli.v1"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 const (
-	flagSourceURI    = "input-source"
-	flagDBUri        = "db-uri"
-	flagImportPeriod = "import-period"
-	flagStartOffset  = "start-offset"
+	flagBaseUri        = "input-source"
+	flagDBUri          = "db-uri"
+	flagImportPeriod   = "import-period"
+	flagStartOffset    = "start-offset"
+	flagImportOnlyOnce = "import-only-once"
+	flagBatchSize      = "batch-size"
 )
 
 var flags = clix.Flags{
 	cli.StringFlag{
-		Name:   flagSourceURI,
-		Usage:  "Source uri for exporting data",
-		EnvVar: "SOURCE_URI",
+		Name:   flagBaseUri,
+		Usage:  "Source host for imported data",
+		EnvVar: "BASE_URI",
 	},
 	cli.StringFlag{
 		Name:   flagDBUri,
@@ -36,6 +40,16 @@ var flags = clix.Flags{
 		Usage:  "How far from now to start getting readings, if no readings in database",
 		EnvVar: "START_OFFSET",
 	},
+	cli.BoolFlag{
+		Name:   flagImportOnlyOnce,
+		Usage:  "Import the data only once and die - mostly for testing",
+		EnvVar: "IMPORT_ONLY_ONCE",
+	},
+	cli.IntFlag{
+		Name:   flagBatchSize,
+		Usage:  "Batch size for committing data in sink",
+		EnvVar: "BATCH_SIZE",
+	},
 }.Merge(clix.CommonFlags, clix.ServerFlags)
 
 // Version is the compiled application version.
@@ -43,10 +57,26 @@ var Version = "¯\\_(ツ)_/¯"
 
 var commands = []cli.Command{
 	{
-		Name:   "server",
-		Usage:  "Run the server",
+		Name:   "export",
+		Usage:  "Run the exporter",
 		Flags:  flags,
 		Action: run,
+	},
+	{
+		Name:  "migrate",
+		Usage: "Migrate the database.",
+		Subcommands: []cli.Command{
+			{
+				Name:   "up",
+				Flags:  flags,
+				Action: runMigrateUp,
+			},
+			{
+				Name:   "down",
+				Flags:  flags,
+				Action: runMigrateDown,
+			},
+		},
 	},
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/msales/go-clock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/rafalmnich/exporter/sink"
@@ -42,47 +43,55 @@ func TestExporter_Export(t *testing.T) {
 	}
 
 	mock, db := tests.MockGormDB()
-	e := sink.NewExporter(db)
+	e := sink.NewExporter(db, 2)
 
-	mock.ExpectBegin()
+	_ = clock.Mock(time.Date(2019, 1, 1, 17, 2, 1, 0, time.UTC))
+	defer clock.Restore()
 
-	mock.
-		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1,$2,$3,$4) RETURNING "iqc"."reading"."id"`)).
-		WithArgs("name1", 0, 20, occuredTime).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).
-			AddRow(1))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ( 
+			UNNEST(ARRAY['name1', 'name2']), 
+			UNNEST(ARRAY[0, 1]), 
+			UNNEST(ARRAY[20, 150]), 
+			UNNEST(ARRAY['2019-01-01 03:02:01'::timestamp, '2019-01-01 03:02:01'::timestamp]) 
+		) ON CONFLICT DO NOTHING`)).
+		WillReturnResult(sqlmock.NewResult(2, 1))
 
-	mock.
-		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1,$2,$3,$4) RETURNING "iqc"."reading"."id"`)).
-		WithArgs("name2", 1, 150, occuredTime).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).
-			AddRow(2))
-
-	mock.ExpectCommit()
 	err := e.Export(context.TODO(), input)
 	assert.NoError(t, err)
 }
 
-func TestExporter_Export_WithErrorOnCommit(t *testing.T) {
+func TestExporter_ExportWithSavingLastImport(t *testing.T) {
 	input := []*sink.Reading{
-		reading3,
+		reading1,
+		reading2,
 	}
+
 	mock, db := tests.MockGormDB()
+	e := sink.NewExporter(db, 2)
 
-	e := sink.NewExporter(db)
-
-	mock.ExpectBegin()
+	occuredMorning := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
+	_ = clock.Mock(time.Date(2019, 1, 10, 17, 2, 1, 0, time.UTC))
+	defer clock.Restore()
 
 	mock.
-		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1,$2,$3,$4) RETURNING "iqc"."reading"."id"`)).
-		WithArgs("name3", 1, 150, occuredTime).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).
-			AddRow(3))
+		ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES (
+			UNNEST(ARRAY['name1', 'name2']),
+			UNNEST(ARRAY[0, 1]),
+			UNNEST(ARRAY[20, 150]),
+			UNNEST(ARRAY['2019-01-01 03:02:01'::timestamp, '2019-01-01 03:02:01'::timestamp])
+		)
+		ON CONFLICT DO NOTHING`)).
+		//WithArgs("'name1', 'name2'", "0, 1", "20, 150", "'2019-01-01 03:02:01 +0000 UTC', '2019-01-01 03:02:01 +0000 UTC'").
+		WillReturnResult(sqlmock.NewResult(1, 0))
 
-	mock.ExpectCommit().WillReturnError(errors.New("test error"))
+	mock.
+		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."import" ("day") VALUES ($1) RETURNING "iqc"."import"."id"`)).
+		WithArgs(occuredMorning).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).
+			AddRow(1))
 
 	err := e.Export(context.TODO(), input)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestExporter_Export_WithErrorOnSave(t *testing.T) {
@@ -96,13 +105,19 @@ func TestExporter_Export_WithErrorOnSave(t *testing.T) {
 	}
 	mock, db := tests.MockGormDB()
 
-	e := sink.NewExporter(db)
+	e := sink.NewExporter(db, 1)
 
 	mock.ExpectBegin()
 
 	mock.
-		ExpectQuery(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1,$2,$3,$4) RETURNING "iqc"."reading"."id"`)).
-		WithArgs("name5", 1, 120, occuredTime).
+		ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES (
+			UNNEST(ARRAY[$1]),
+			UNNEST(ARRAY[$2]),
+			UNNEST(ARRAY[$3]),
+			UNNEST(ARRAY[$4])
+		)
+		ON CONFLICT DO NOTHING`)).
+		WithArgs("test5", 1, 120, occuredTime).
 		WillReturnError(errors.New("test error"))
 
 	err := e.Export(context.TODO(), input)

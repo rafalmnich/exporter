@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,10 +41,8 @@ func TestCsvImporter_Import(t *testing.T) {
 2019-09-20;00:14:24;0;0;0;0;6;6;6;6;548;253;0;0;236;3;0;0;0;0;166;127;0;233;23;0;238;113;0;60;180;180;550;0;0;140;
 `)
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return mockResponse(response), nil
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockDoer(response)
+	c := importer.NewCsvImporter(db, sl, 0, "")
 	now := time.Date(2019, 9, 20, 10, 0, 0, 0, time.UTC)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
@@ -100,10 +99,8 @@ func TestCsvImporter_ImportNoLastSync(t *testing.T) {
 2019-09-20;00:14:24;0;0;0;0;6;6;6;6;548;253;0;0;236;3;0;0;0;0;166;127;0;233;23;0;238;113;0;60;180;180;550;0;0;140;
 `)
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return mockResponse(response), nil
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockDoer(response)
+	c := importer.NewCsvImporter(db, sl, 0, "")
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "type", "value", "occurred"}))
@@ -144,10 +141,8 @@ func TestCsvImporter_Import_WithDbError(t *testing.T) {
 	response := []byte(`Data;Hour;In7;In8;In9;
 2019-09-20;00:01:24;0;10;0;`)
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return mockResponse(response), nil
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockDoer(response)
+	c := importer.NewCsvImporter(db, sl, 0, "")
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
 		WillReturnError(errors.New("test error"))
@@ -161,10 +156,8 @@ func TestCsvImporter_Import_WithDbError(t *testing.T) {
 func TestCsvImporter_Import_WithFetchError(t *testing.T) {
 	mock, db := tests.MockGormDB()
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return nil, errors.New("test error")
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockErroredDoer()
+	c := importer.NewCsvImporter(db, sl, 0, "")
 	now := time.Date(2019, 9, 20, 10, 0, 0, 0, time.UTC)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
@@ -180,10 +173,8 @@ func TestCsvImporter_Import_WithFetchError(t *testing.T) {
 func TestCsvImporter_Import_WithResponseError(t *testing.T) {
 	mock, db := tests.MockGormDB()
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return mockErroredResponse(), nil
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockDoer([]byte(""))
+	c := importer.NewCsvImporter(db, sl, 0, "")
 	now := time.Date(2019, 9, 20, 10, 0, 0, 0, time.UTC)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
@@ -201,10 +192,8 @@ func TestCsvImporter_Import_WithTimeError(t *testing.T) {
 	response := []byte(`Data;Hour;In7;In8;In9;
 not a date;00:01:24;0;10;0;`)
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return mockResponse(response), nil
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockDoer(response)
+	c := importer.NewCsvImporter(db, sl, 0, "")
 	now := time.Date(2019, 9, 20, 10, 0, 0, 0, time.UTC)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
@@ -224,10 +213,8 @@ func TestCsvImporter_Import_WithValueError(t *testing.T) {
 	response := []byte(`Data;Hour;In7;In8;In9;
 2019-01-01;00:01:24;not an int;10;0;`)
 
-	sl := mockClient(func(req *http.Request) (*http.Response, error) {
-		return mockResponse(response), nil
-	})
-	c := importer.NewCsvImporter(db, sl, 0)
+	sl := mockDoer(response)
+	c := importer.NewCsvImporter(db, sl, 0, "")
 	now := time.Date(2019, 9, 20, 10, 0, 0, 0, time.UTC)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
@@ -249,14 +236,31 @@ func (errReader) Read(p []byte) (n int, err error) {
 	return 0, errors.New("test error")
 }
 
-func mockClient(fn MockDoer) *sling.Sling {
-	return sling.New().Doer(fn)
+type doerMock struct {
+	response string
 }
 
-type MockDoer func(req *http.Request) (*http.Response, error)
+func (d doerMock) Do(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		Status:     "OK",
+		StatusCode: 200,
+		Body:       ioutil.NopCloser(strings.NewReader(d.response)),
+	}, nil
+}
 
-func (fn MockDoer) Do(req *http.Request) (*http.Response, error) {
-	return fn(req)
+func mockDoer(response []byte) sling.Doer {
+	return &doerMock{response: string(response)}
+}
+
+type erroredDoerMock struct {
+}
+
+func (e erroredDoerMock) Do(req *http.Request) (*http.Response, error) {
+	return nil, errors.New("test error")
+}
+
+func mockErroredDoer() sling.Doer {
+	return &erroredDoerMock{}
 }
 
 func mockResponse(response []byte) *http.Response {

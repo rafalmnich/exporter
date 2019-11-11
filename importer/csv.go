@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,55 +22,62 @@ import (
 
 // CsvImporter is a service for importing data from csv file that is online
 type CsvImporter struct {
-	db    *gorm.DB
-	sling *sling.Sling
-
+	db          *gorm.DB
+	doer        sling.Doer
+	baseUri     string
 	startOffset time.Duration
 }
 
 // NewCsvImporter is CsvImporter constructor
-func NewCsvImporter(db *gorm.DB, sling *sling.Sling, startOffset time.Duration) *CsvImporter {
-	return &CsvImporter{db: db, sling: sling, startOffset: startOffset}
+func NewCsvImporter(db *gorm.DB, doer sling.Doer, startOffset time.Duration, baseUri string) *CsvImporter {
+	return &CsvImporter{db: db, doer: doer, startOffset: startOffset, baseUri: baseUri}
 }
 
 // Import imports data (inputs and outputs) from given mass
 func (c *CsvImporter) Import(ctx context.Context) ([]*sink.Reading, error) {
-	return c.getNewReadings(ctx, c.getLastSync(ctx), sink.Input)
+	return c.getNewReadings(ctx, c.getLastSync(), sink.Input)
 }
 
-func (c *CsvImporter) getLastSync(ctx context.Context) *sink.Reading {
-	reading := &sink.Reading{}
+func (c *CsvImporter) getLastSync() *sink.Import {
+	imported := sink.Import{}
 
-	err := c.db.Last(reading).Error
+	err := c.db.Last(&imported).Error
 	if err != nil {
 		return nil
 	}
 
-	return reading
+	return &imported
 }
 
-func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Reading, tp sink.Type) ([]*sink.Reading, error) {
-	response, err := c.sling.
+func (c *CsvImporter) getNewReadings(ctx context.Context, reading *sink.Import, tp sink.Type) ([]*sink.Reading, error) {
+	uri := c.baseUri + c.fileName(reading)
+
+	var response *http.Response
+	request, err := sling.
 		New().
-		Get(c.fileName(reading)).
-		ReceiveSuccess(nil)
+		Get(uri).
+		Request()
+
 	if err != nil {
 		return nil, xerrors.Errorf(": %w", err)
+	}
+
+	response, err = c.doer.Do(request)
+	if err != nil {
+		return nil, xerrors.Errorf(": %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, xerrors.New("Couldn't read from source: " + uri)
 	}
 
 	return c.prepareReading(ctx, response, tp)
 }
 
-func (c *CsvImporter) fileName(reading *sink.Reading) string {
-	if reading == nil {
-		startFrom := clock.Now().Add(-c.startOffset)
-		reading = &sink.Reading{
-			Occurred: startFrom,
-		}
-	}
+func (c *CsvImporter) fileName(lastImport *sink.Import) string {
+	nextImportDate := c.nextImportDate(lastImport)
 
-	dir := reading.Occurred.Format("200601")
-	date := reading.Occurred.Format("20060102")
+	dir := nextImportDate.Format("200601")
+	date := nextImportDate.Format("20060102")
 
 	return fmt.Sprintf("/logs/%s/i_%s.csv", dir, date)
 }
@@ -86,6 +94,10 @@ func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Respons
 	records, err := reader.ReadAll()
 	if err != nil {
 		return nil, xerrors.Errorf(": %w", err)
+	}
+
+	if len(records) == 0 {
+		return nil, errors.New("empty or wrong reading")
 	}
 
 	names := records[0]
@@ -140,4 +152,12 @@ func (c *CsvImporter) extract(row []string, ctx context.Context, names []string,
 
 func isDateTimeCell(i int) bool {
 	return i < 2
+}
+
+func (c *CsvImporter) nextImportDate(lastImport *sink.Import) time.Time {
+	if lastImport != nil {
+		return lastImport.Day.AddDate(0, 0, 1)
+	}
+
+	return clock.Now().Add(-c.startOffset)
 }

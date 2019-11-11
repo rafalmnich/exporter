@@ -27,3 +27,13 @@ type Reading struct {
 func (r *Reading) TableName() string {
 	return "iqc.reading"
 }
+
+// Import is the import history
+type Import struct {
+	ID  uint64 `gorm:"primary_key"`
+	Day time.Time
+}
+
+func (i *Import) TableName() string {
+	return "iqc.import"
+}

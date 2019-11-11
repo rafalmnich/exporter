@@ -1,12 +1,12 @@
-package exporter
+package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
-	"syscall"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,37 +21,68 @@ import (
 	"github.com/rafalmnich/exporter/tests"
 )
 
+var lock = &sync.Mutex{}
+
+func init() {
+	prepareTestServer()
+}
+
 func Test_Functional_App(t *testing.T) {
+	t.Skip()
+	lock.Lock()
+	defer lock.Unlock()
+
 	var mock sqlmock.Sqlmock
 	mock, db = tests.MockGormDB()
 
-	now := time.Now()
+	now := time.Date(2019, 10, 1, 12, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "type", "value", "occurred"}).
 			AddRow(1, "In81", 0, 210, now))
+	mock.ExpectBegin()
 
-	assert.NotPanics(t, func() {
-		go run(initCliContext(getFlags()))
-		time.Sleep(10 * time.Millisecond)
-		err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-		assert.NoError(t, err)
-	})
-}
+	firstResultTime, _ := time.Parse("2006-01-02 15:04:05", "2019-09-20 00:01:24")
+	secondResultTime, _ := time.Parse("2006-01-02 15:04:05", "2019-09-20 00:02:24")
 
-func Test_Functional_App_Errored_Export(t *testing.T) {
-	db = nil
-	assert.NotPanics(t, func() {
-		go run(initCliContext(getFlags()))
-		time.Sleep(10 * time.Millisecond)
-		err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-		assert.NoError(t, err)
-	})
+	mock.
+		ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`)).
+		WithArgs("In7", 0, 0, firstResultTime).
+		WillReturnResult(sqlmock.NewResult(1, 0))
+
+	mock.
+		ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`)).
+		WithArgs("In8", 0, 10, firstResultTime).
+		WillReturnResult(sqlmock.NewResult(1, 0))
+
+	mock.
+		ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`)).
+		WithArgs("In7", 0, 10, secondResultTime).
+		WillReturnResult(sqlmock.NewResult(1, 0))
+
+	mock.
+		ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`)).
+		WithArgs("In8", 0, 0, secondResultTime).
+		WillReturnResult(sqlmock.NewResult(1, 0))
+
+	mock.ExpectCommit()
+
+	mock.MatchExpectationsInOrder(false)
+
+	flags := defaultFlags()
+	flags[flagImportOnlyOnce] = "true"
+	err := run(initCliContext(flags))
+	assert.Error(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+
+	//time.Sleep(8 * time.Millisecond)
 }
 
 func Test_Functional_App_Panics_Context(t *testing.T) {
+	lock.Lock()
+	defer lock.Unlock()
 	db = nil
 	assert.Panics(t, func() {
-		flags := getFlags()
+		flags := defaultFlags()
 		flags[clix.FlagLogLevel] = "not existing"
 
 		ctx := initCliContext(flags)
@@ -61,9 +92,12 @@ func Test_Functional_App_Panics_Context(t *testing.T) {
 }
 
 func Test_Functional_App_Panics_Database(t *testing.T) {
+	lock.Lock()
+	defer lock.Unlock()
+
 	db = nil
 	assert.Panics(t, func() {
-		flags := getFlags()
+		flags := defaultFlags()
 		flags[flagDBUri] = "not existing"
 
 		ctx := initCliContext(flags)
@@ -73,23 +107,29 @@ func Test_Functional_App_Panics_Database(t *testing.T) {
 }
 
 func Test_Functional_App_Panics_Health(t *testing.T) {
-	db, err := getDb(dbURI)
-	assert.NoError(t, err)
-	assert.Panics(t, func() {
-		flags := getFlags()
+	//t.Skip()
+	lock.Lock()
+	defer lock.Unlock()
 
+	_, db = tests.MockGormDB()
+
+	assert.Panics(t, func() {
+		flags := defaultFlags()
 		ctx := initCliContext(flags)
 
 		_ = db.DB().Close()
 
-		run(ctx)
+		_ = run(ctx)
+		time.Sleep(8 * time.Millisecond)
 	})
 }
 
 func TestGetData(t *testing.T) {
-	now := time.Now()
+	lock.Lock()
+	defer lock.Unlock()
 
-	ctx, err := initContext(getFlags())
+	now := time.Now()
+	ctx, err := initContext(defaultFlags())
 	assert.NoError(t, err)
 
 	i := new(mocks.Importer)
@@ -107,32 +147,23 @@ func TestGetData(t *testing.T) {
 	i.On("Import", ctx).Return(readings, nil)
 	e.On("Export", ctx, readings).Return(nil)
 
-	var mock sqlmock.Sqlmock
-	mock, db = tests.MockGormDB()
-
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "type", "value", "occurred"}).
-			AddRow(1, "In81", 0, 210, now))
+	_, db = tests.MockGormDB()
 
 	app := exporter.NewApplication(i, e, db)
 
-	errs := make(chan error, 1)
-
-	go getData(ctx, app, time.Millisecond, errs)
-
-	time.Sleep(10 * time.Millisecond)
-	errs <- errors.New("test error")
+	getData(ctx, app, time.Millisecond, true)
 }
 
-func TestGetData_Errored(t *testing.T) {
-	now := time.Now()
+func TestGetData_ErroredExporter(t *testing.T) {
+	lock.Lock()
+	defer lock.Unlock()
 
-	ctx, err := initContext(getFlags())
+	now := time.Now()
+	ctx, err := initContext(defaultFlags())
 	assert.NoError(t, err)
 
 	i := new(mocks.Importer)
 	e := new(mocks.Exporter)
-
 	readings := []*sink.Reading{
 		{
 			ID:       1,
@@ -154,25 +185,26 @@ func TestGetData_Errored(t *testing.T) {
 
 	app := exporter.NewApplication(i, e, db)
 
-	errs := make(chan error, 1)
-
-	go getData(ctx, app, time.Millisecond, errs)
+	err = getData(ctx, app, time.Millisecond, true)
+	assert.Error(t, err)
 }
 
-func initContext(flags map[string]string) (context.Context, error) {
+func initContext(flags map[string]string) (*clix.Context, error) {
 	return clix.NewContext(initCliContext(flags))
 }
 
 // helpers
 var dbURI = "postgres://iqcc_user:iqcc_pass@localhost/iqcc?sslmode=disable"
 
-func getFlags() map[string]string {
+func defaultFlags() map[string]string {
 	return map[string]string{
-		flagSourceURI:     "http://example.com",
-		flagDBUri:         dbURI,
-		flagImportPeriod:  "5ms",
-		flagStartOffset:   "336h",
-		clix.FlagLogLevel: "info",
+		flagBaseUri:        "http://localhost:8088",
+		flagDBUri:          dbURI,
+		flagImportPeriod:   "5ms",
+		flagStartOffset:    "336h",
+		clix.FlagLogLevel:  "info",
+		flagImportOnlyOnce: "false",
+		flagBatchSize:      "10",
 	}
 }
 
@@ -194,4 +226,18 @@ func initCliContext(args map[string]string) *cli.Context {
 	}
 
 	return cCtx
+}
+
+func prepareTestServer() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		response := []byte(`Data;Hour;In7;In8;
+2019-09-20;00:01:24;0;10;
+2019-09-20;00:02:24;10;0;
+`)
+
+		_, _ = w.Write(response)
+	})
+	go func() {
+		_ = http.ListenAndServe(":8088", nil)
+	}()
 }

@@ -8,3 +8,11 @@
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/rafalmnich/exporter/master/LICENSE)
 
 A pet project for exporting csv data from IQControls Mass controller logs to timescale DB. 
+
+
+##Enviroments
+
+- **BASE_URI** Host for importing the data - usually mass server ip like `http://10.0.0.150`
+- **START_OFFSET** How far from now to start getting readings, if no readings in database `time.Duration`, eg.: `1h`
+- **IMPORT_PERIOD** The import period - shouldn't be less than 1 min
+- **IMPORT_ONLY_ONCE** Import the data only once and die - mostly for testing

@@ -10,8 +10,8 @@ import (
 
 // Application is the App
 type Application interface {
-	Import(ctx context.Context) ([]*sink.Reading, error)
-	Export(ctx context.Context, imp []*sink.Reading) error
+	Importer
+	Exporter
 }
 
 // Importer is a data importer
