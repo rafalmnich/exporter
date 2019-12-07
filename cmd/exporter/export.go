@@ -28,7 +28,7 @@ func run(c *cli.Context) error {
 	go stats.RuntimeFromContext(ctx, stats.DefaultRuntimeInterval)
 
 	s := &http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 
 	db, err := getDb(c.String(flagDBUri))
@@ -59,7 +59,8 @@ func run(c *cli.Context) error {
 
 	go func() {
 		if err := anyError(errs); err != nil {
-			log.Fatal(ctx, err.Error())
+			log.Error(ctx, err.Error())
+			time.Sleep(c.Duration(flagImportPeriod))
 		}
 	}()
 

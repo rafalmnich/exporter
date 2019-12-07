@@ -107,10 +107,6 @@ func prepareOccurredArray(readings []*Reading) string {
 	return prepareArray(readings, occuredFunc, timestampGlue)
 }
 
-func addTimestamp(s string) string {
-	return s + "::timestamp"
-}
-
 func (e *Exporter) updateImported(occurred time.Time) error {
 	readingMorning := getMorning(occurred)
 	todayMorning := getMorning(clock.Now())
