@@ -60,6 +60,72 @@ func TestExporter_Export(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestExporter_ExportTwoBatches(t *testing.T) {
+	input := []*sink.Reading{
+		reading1,
+		reading2,
+		reading3,
+	}
+
+	mock, db := tests.MockGormDB()
+	e := sink.NewExporter(db, 2)
+
+	_ = clock.Mock(time.Date(2019, 1, 1, 17, 2, 1, 0, time.UTC))
+	defer clock.Restore()
+
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ( 
+			UNNEST(ARRAY['name1', 'name2']), 
+			UNNEST(ARRAY[0, 1]), 
+			UNNEST(ARRAY[20, 150]), 
+			UNNEST(ARRAY['2019-01-01 03:02:01'::timestamp, '2019-01-01 03:02:01'::timestamp]) 
+		) ON CONFLICT DO NOTHING`)).
+		WillReturnResult(sqlmock.NewResult(2, 1))
+
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ( 
+			UNNEST(ARRAY['name3']), 
+			UNNEST(ARRAY[1]), 
+			UNNEST(ARRAY[150]), 
+			UNNEST(ARRAY['2019-01-01 03:02:01'::timestamp]) 
+		) ON CONFLICT DO NOTHING`)).
+		WillReturnResult(sqlmock.NewResult(3, 1))
+
+	err := e.Export(context.TODO(), input)
+	assert.NoError(t, err)
+}
+
+func TestExporter_ExportTwoBatchesErrored(t *testing.T) {
+	input := []*sink.Reading{
+		reading1,
+		reading2,
+		reading3,
+	}
+
+	mock, db := tests.MockGormDB()
+	e := sink.NewExporter(db, 2)
+
+	_ = clock.Mock(time.Date(2019, 1, 1, 17, 2, 1, 0, time.UTC))
+	defer clock.Restore()
+
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ( 
+			UNNEST(ARRAY['name1', 'name2']), 
+			UNNEST(ARRAY[0, 1]), 
+			UNNEST(ARRAY[20, 150]), 
+			UNNEST(ARRAY['2019-01-01 03:02:01'::timestamp, '2019-01-01 03:02:01'::timestamp]) 
+		) ON CONFLICT DO NOTHING`)).
+		WillReturnResult(sqlmock.NewResult(2, 1))
+
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "iqc"."reading" ("name","type","value","occurred") VALUES ( 
+			UNNEST(ARRAY['name3']), 
+			UNNEST(ARRAY[1]), 
+			UNNEST(ARRAY[150]), 
+			UNNEST(ARRAY['2019-01-01 03:02:01'::timestamp]) 
+		) ON CONFLICT DO NOTHING`)).
+		WillReturnError(errors.New("test error"))
+
+	err := e.Export(context.TODO(), input)
+	assert.Error(t, err)
+}
+
 func TestExporter_ExportWithSavingLastImport(t *testing.T) {
 	input := []*sink.Reading{
 		reading1,

@@ -170,23 +170,6 @@ func TestCsvImporter_Import_WithFetchError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCsvImporter_Import_WithResponseError(t *testing.T) {
-	mock, db := tests.MockGormDB()
-
-	sl := mockDoer([]byte(""))
-	c := importer.NewCsvImporter(db, sl, 0, "")
-	now := time.Date(2019, 9, 20, 10, 0, 0, 0, time.UTC)
-
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "iqc"."reading"  ORDER BY "iqc"."reading"."id" DESC LIMIT 1`)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "type", "value", "occurred"}).
-			AddRow(1, "In81", 0, 210, now))
-
-	ctx := context.Background()
-	ctx = log.WithLogger(ctx, new(mocks.Logger))
-	_, err := c.Import(ctx)
-	assert.Error(t, err)
-}
-
 func TestCsvImporter_Import_WithTimeError(t *testing.T) {
 	mock, db := tests.MockGormDB()
 	response := []byte(`Data;Hour;In7;In8;In9;
