@@ -20,6 +20,8 @@ import (
 	"github.com/rafalmnich/exporter/sink"
 )
 
+const dataHourPart = "Data;Hour;"
+
 // CsvImporter is a service for importing data from csv file that is online
 type CsvImporter struct {
 	db          *gorm.DB
@@ -107,33 +109,53 @@ func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Respons
 		return nil, xerrors.Errorf("cannot read response body: %w", err)
 	}
 
-	reader := csv.NewReader(strings.NewReader(string(body)))
-	reader.Comma = ';'
+	parts := parseCSV(body)
+	readings := make([]*sink.Reading, 0, 100*len(parts))
 
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, xerrors.Errorf("cannot read csv file: %w", err)
-	}
+	for _, part := range parts {
+		reader := csv.NewReader(strings.NewReader(part))
+		reader.Comma = ';'
 
-	if len(records) == 0 {
-		return nil, errors.New("empty or wrong reading")
-	}
-
-	names := records[0]
-	readings := make([]*sink.Reading, 0, len(names)*len(records))
-
-	for rowNumber, row := range records {
-		if rowNumber == 0 {
-			continue
+		records, err := reader.ReadAll()
+		if err != nil {
+			return nil, xerrors.Errorf("cannot read csv file: %w", err)
 		}
 
-		rs, err := c.extract(row, ctx, names, tp)
-		if err == nil {
-			readings = append(readings, rs...)
+		if len(records) == 0 {
+			return nil, errors.New("empty or wrong reading")
+		}
+
+		names := records[0]
+
+		for rowNumber, row := range records {
+			if rowNumber == 0 {
+				continue
+			}
+
+			rs, err := c.extract(row, ctx, names, tp)
+			if err == nil {
+				readings = append(readings, rs...)
+			}
 		}
 	}
 
 	return readings, nil
+}
+
+func parseCSV(body []byte) []string {
+	parts := strings.Count(string(body), dataHourPart)
+	if parts == 1 {
+		return []string{string(body)}
+	}
+
+	splitted := strings.Split(string(body), dataHourPart)
+	splitted = splitted[1:]
+
+	for i := range splitted {
+		splitted[i] = dataHourPart + splitted[i]
+	}
+
+	return splitted
 }
 
 func (c *CsvImporter) extract(row []string, ctx context.Context, names []string, tp sink.Type) ([]*sink.Reading, error) {
