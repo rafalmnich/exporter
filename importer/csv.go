@@ -109,7 +109,7 @@ func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Respons
 		return nil, xerrors.Errorf("cannot read response body: %w", err)
 	}
 
-	parts := parseCSV(body)
+	parts := splitCSV(body)
 	readings := make([]*sink.Reading, 0, 100*len(parts))
 
 	for _, part := range parts {
@@ -142,7 +142,7 @@ func (c *CsvImporter) prepareReading(ctx context.Context, response *http.Respons
 	return readings, nil
 }
 
-func parseCSV(body []byte) []string {
+func splitCSV(body []byte) []string {
 	parts := strings.Count(string(body), dataHourPart)
 	if parts == 1 {
 		return []string{string(body)}
